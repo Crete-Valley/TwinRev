@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NOTE: 01-secrets.example.yaml is intentionally NOT listed — copy it, fill in
+# real values outside git, and apply it manually (or run scripts/create-secrets.sh).
+resources:
+  - 00-namespace.yaml
+  - 02-postgres.yaml
+  - 03-dpsim.yaml
+  - 04-dt-backend.yaml
+  - 05-optimizer.yaml
+  - 06-cronjob-data-fetch.yaml
+  - 07-cronjob-forecasting.yaml
+  - 08-networkpolicies.yaml

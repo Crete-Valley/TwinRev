@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multi-energy-optimization-model-fastapi
+  namespace: digital-twin
+  labels:
+    app: multi-energy-optimization-model-fastapi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: multi-energy-optimization-model-fastapi
+  template:
+    metadata:
+      labels:
+        app: multi-energy-optimization-model-fastapi
+    spec:
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: optimizer
+          image: cvdt/optimizer:local
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            # The service writes logs.log and project/data_outputs/ inside the
+            # container, so the root filesystem stays writable (still non-root).
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            - secretRef:
+                name: dt-secrets
+          ports:
+            - containerPort: 8000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: multi-energy-optimization-model-fastapi-service
+  namespace: digital-twin
+spec:
+  # NodePort for local single-node testing only.
+  type: NodePort
+  selector:
+    app: multi-energy-optimization-model-fastapi
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30082

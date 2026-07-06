@@ -1,0 +1,23 @@
+# Secrets & local environment — never commit credentials, endpoints or tokens.
+.env
+.env.*
+!.env.example
+my-secrets.yaml
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Logs & runtime output
+*.log
+t4.3-optimization/project/data_outputs/*
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

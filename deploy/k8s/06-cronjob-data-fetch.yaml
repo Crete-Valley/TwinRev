@@ -1,0 +1,73 @@
+# Generates deterministic synthetic time-series data for every seeded
+# cel/plant/device (mirrors the production `simulated-data-fetch` CronJob).
+#
+# HOURS_TO_BACKFILL controls how far back data is (re)generated. It is set to
+# 168 (7 days) so a fresh install gets a useful window on the first run; the
+# hourly schedule then keeps it topped up. Trigger a one-off run with:
+#   kubectl -n digital-twin create job --from=cronjob/simulated-data-fetch data-fetch-now
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: simulated-data-fetch
+  namespace: digital-twin
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      # OnFailure + retries: a freshly created pod can lose the race with
+      # NetworkPolicy programming on its first DB connection; in-place container
+      # restarts (same pod IP) recover from that, unlike restartPolicy Never.
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app: dt-jobs
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: job-container
+              image: cvdt/forecasting:local
+              imagePullPolicy: IfNotPresent
+              command: ["python"]
+              args: ["pv_data_fetch.py"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: DB_HOST
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_HOST}
+                - name: DB_PORT
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_PORT}
+                - name: DB_NAME
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_NAME}
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_USER}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_PASSWORD}
+                - name: HOURS_TO_BACKFILL
+                  value: "168"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi

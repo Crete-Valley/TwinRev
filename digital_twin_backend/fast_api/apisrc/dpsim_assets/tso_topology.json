@@ -1,0 +1,10 @@
+{
+  "_comment": "Placeholder transmission topology. The real Crete grid topology (substation/bus voltage keys, line ids, rated currents) is proprietary and not distributed. Replace buses/lines with entries matching YOUR DPsim network archive to get per-bus and per-line post-processed results.",
+  "base_kv": 150.0,
+  "buses": {
+    "EXAMPLE SUBSTATION": {"re": "12345 EXAMPLE_V.re", "im": "12345 EXAMPLE_V.im"}
+  },
+  "lines": [
+    {"name": "EXAMPLE A - EXAMPLE B", "prefixes": ["lne_12345_23456_1"], "i_rated_ka": 0.7775, "parallel_count": 1}
+  ]
+}

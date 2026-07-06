@@ -1,0 +1,82 @@
+# Runs the Chronos forecasting pipeline against the external forecasting API
+# (mirrors the production `simulated-forecasting` CronJob).
+#
+# REQUIRES the `forecasting-simulation-secrets` Secret to contain a valid
+# FORECASTING_API_ENDPOINT and FORECASTING_API_KEY — contact the maintainers
+# (MAINTAINERS.md) to obtain them. Without them the job fails fast and the rest
+# of the stack keeps working. Trigger a one-off run with:
+#   kubectl -n digital-twin create job --from=cronjob/simulated-forecasting forecasting-now
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: simulated-forecasting
+  namespace: digital-twin
+spec:
+  schedule: "13 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 900
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      # OnFailure + retries: a freshly created pod can lose the race with
+      # NetworkPolicy programming on its first DB connection; in-place container
+      # restarts (same pod IP) recover from that, unlike restartPolicy Never.
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app: dt-jobs
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: job-container
+              image: cvdt/forecasting:local
+              imagePullPolicy: IfNotPresent
+              command: ["python"]
+              args: ["pv_forecasting.py"]
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: DB_HOST
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_HOST}
+                - name: DB_PORT
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_PORT}
+                - name: DB_NAME
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_NAME}
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_USER}
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef: {name: dt-secrets, key: DB_POST_PASSWORD}
+                - name: FORECASTING_API_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: forecasting-simulation-secrets
+                      key: FORECASTING_API_ENDPOINT
+                - name: FORECASTING_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: forecasting-simulation-secrets
+                      key: FORECASTING_API_KEY
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi

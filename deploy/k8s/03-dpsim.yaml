@@ -1,0 +1,55 @@
+# DPsim power-flow simulation service (public image from RWTH Aachen ACS).
+# Mirrors the production deployment: port 5000, DPS_LOG_LEVEL=INFO.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpsim-backend
+  namespace: digital-twin
+  labels:
+    app: dpsim
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dpsim
+  template:
+    metadata:
+      labels:
+        app: dpsim
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dpsim
+          image: registry.git.rwth-aachen.de/acs/public/dpsv:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DPS_LOG_LEVEL
+              value: INFO
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  # The backend resolves DPsim at http://dpsim-service:5000 (config.py default).
+  name: dpsim-service
+  namespace: digital-twin
+spec:
+  selector:
+    app: dpsim
+  ports:
+    - port: 5000
+      targetPort: 5000

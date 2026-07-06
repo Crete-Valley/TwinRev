@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: digital-twin
+  labels:
+    app.kubernetes.io/part-of: system-of-systems-digital-twin
+    # Enforce the Kubernetes "restricted" Pod Security Standard for every pod
+    # in the namespace (non-root, no privilege escalation, dropped caps).
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted

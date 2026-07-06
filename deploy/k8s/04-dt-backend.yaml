@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dt-backend
+  namespace: digital-twin
+  labels:
+    app: dt-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dt-backend
+  template:
+    metadata:
+      labels:
+        app: dt-backend
+    spec:
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dt-backend
+          image: cvdt/dt-backend:local
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          envFrom:
+            - secretRef:
+                name: dt-secrets
+          env:
+            - name: DPSIM_URL
+              value: http://dpsim-service:5000
+          ports:
+            - containerPort: 8000
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /openapi.json
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 30
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dt-backend-service
+  namespace: digital-twin
+spec:
+  # NodePort for local single-node testing only. On a real deployment put an
+  # Ingress with TLS in front and switch this to ClusterIP.
+  type: NodePort
+  selector:
+    app: dt-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30080

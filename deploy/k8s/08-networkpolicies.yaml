@@ -1,0 +1,168 @@
+# Explicit-deny-by-default network policy for the namespace, with the minimal
+# allows the stack needs. The forecasting job is the only pod allowed to reach
+# the internet (the external forecasting API).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: digital-twin
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# Everyone may resolve DNS (kube-dns).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: digital-twin
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# Postgres accepts connections only from in-namespace pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-ingress
+  namespace: digital-twin
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - port: 5432
+---
+# dt-backend: reachable from anywhere (NodePort demo); may talk to Postgres,
+# DPsim, and the optimizer (/call-flexibility proxies to /optimize).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dt-backend
+  namespace: digital-twin
+spec:
+  podSelector:
+    matchLabels:
+      app: dt-backend
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports:
+        - port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app: dpsim
+      ports:
+        - port: 5000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: multi-energy-optimization-model-fastapi
+      ports:
+        - port: 8000
+    # HTTPS to the external identity provider for POST /user/signin.
+    # Only used when KEYCLOAK_TOKEN_URL is configured; private ranges stay blocked.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+---
+# DPsim: only the backend talks to it; no egress needed.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dpsim
+  namespace: digital-twin
+spec:
+  podSelector:
+    matchLabels:
+      app: dpsim
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: dt-backend
+      ports:
+        - port: 5000
+---
+# Optimizer: reachable from anywhere (NodePort demo); may talk to Postgres.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: optimizer
+  namespace: digital-twin
+spec:
+  podSelector:
+    matchLabels:
+      app: multi-energy-optimization-model-fastapi
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - ports:
+        - port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+---
+# Jobs (data fetch + forecasting): Postgres, plus HTTPS/HTTP egress to the
+# external forecasting API; private ranges stay blocked. Matched by the
+# explicit app label on the CronJob pod templates (matchLabels, because some
+# embedded policy controllers do not implement matchExpressions).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: jobs-egress
+  namespace: digital-twin
+spec:
+  podSelector:
+    matchLabels:
+      app: dt-jobs
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+        - port: 80

@@ -1,0 +1,5 @@
+{
+  "_comment": "Placeholder component->bus mapping. Real Crete grid topology is proprietary and not distributed. Provide your own mapping plus the matching dpsim_assets/cel{cell}_{name}.zip network files to run the DPsim TSO/DSO pipeline.",
+  "genstat_EXAMPLE_PV": "EXAMPLE_BUS_01 MV",
+  "genstat_EXAMPLE_WIND": "EXAMPLE_BUS_02 MV"
+}
